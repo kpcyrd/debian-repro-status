@@ -6,8 +6,10 @@ use crate::args::Args;
 use crate::errors::*;
 use clap::Parser;
 use colored::Colorize;
+use indicatif::ProgressBar;
 use rebuilderd_common::{PkgRelease as RebuilderdPackage, Status};
 use std::collections::BTreeMap;
+use std::time::Duration;
 use tokio::fs;
 
 const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
@@ -64,8 +66,14 @@ macro_rules! info {
 async fn main() -> Result<()> {
     let args = Args::parse();
 
+    let progress_bar = ProgressBar::new_spinner();
+    progress_bar.enable_steady_tick(Duration::from_millis(80));
+    progress_bar.set_message("Retrieving packages...");
+
     let (installed, reproduced) =
         tokio::try_join!(dpkg::query_packages(&args), rebuilderd_query_pkgs(&args),)?;
+
+    progress_bar.finish_and_clear();
 
     let mut negatives = 0;
     for pkg in &installed {

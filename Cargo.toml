@@ -15,6 +15,7 @@ edition = "2021"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 colored = "2"
+indicatif = "0.17"
 rebuilderd-common = "0.21"
 reqwest = { version = "0.11", features = ["json", "rustls-tls-native-roots"] }
 serde_json = "1"

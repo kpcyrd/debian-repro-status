@@ -2,6 +2,7 @@ use clap::Parser;
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
+#[command(version)]
 pub struct Args {
     /// Use this architecture instead of auto-detecting
     #[arg(long)]

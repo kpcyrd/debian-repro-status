@@ -93,6 +93,12 @@ async fn main() -> Result<()> {
             negatives += 1;
         }
 
+        if let Some(filter) = &args.filter {
+            if *status != *filter {
+                continue;
+            }
+        }
+
         let icon = match status {
             Status::Good => "+".green(),
             Status::Bad => "-".red(),

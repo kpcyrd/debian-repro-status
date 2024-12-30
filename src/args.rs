@@ -16,4 +16,12 @@ pub struct Args {
     /// Read rebuilderd package list from file instead of querying over the network
     #[arg(long)]
     pub rebuilderd_query_output: Option<PathBuf>,
+    /// Sets the filter for package status.
+    #[arg(
+        short,
+        long,
+        value_name = "STATUS",
+        value_parser = *&["GOOD", "BAD", "UNKWN"]
+    )]
+    pub filter: Option<String>,
 }

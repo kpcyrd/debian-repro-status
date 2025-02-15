@@ -19,45 +19,58 @@ fn default_arch_rebuilderd(arch: String) -> String {
 }
 
 async fn rebuilderd_query_pkgs(args: &Args) -> Result<BTreeMap<String, Vec<RebuilderdPackage>>> {
-    let response = if let Some(path) = &args.rebuilderd_query_output {
+    let responses = if let Some(path) = &args.rebuilderd_query_output {
         let buf = fs::read(&path).await.with_context(|| {
             anyhow!("Failed to read rebuilderd query output from file: {path:?}")
         })?;
-        serde_json::from_slice(&buf)?
+        vec![serde_json::from_slice(&buf)?]
     } else {
-        let endpoint = match (&args.rebuilderd, &args.architecture) {
+        let endpoints = match (&args.rebuilderd, &args.architecture) {
             (Some(url), _) => {
-                url.trim_end_matches('/').to_string()
+                vec![url.trim_end_matches('/').to_string()]
             }
             (_, Some(arch)) => {
-                default_arch_rebuilderd(arch.to_string())
+                vec![
+                    default_arch_rebuilderd(arch.to_string()),
+                    default_arch_rebuilderd("all".to_string()),
+                ]
             }
             (_, _) => {
                 let arch = dpkg::print_architecture().await?;
-                default_arch_rebuilderd(arch)
+                vec![
+                    default_arch_rebuilderd(arch),
+                    default_arch_rebuilderd("all".to_string()),
+                ]
             }
         };
 
-        let url = format!("{endpoint}/api/v0/pkgs/list");
+        let mut responses = Vec::new();
+        for endpoint in endpoints {
+            let url = format!("{endpoint}/api/v0/pkgs/list");
 
-        let http = reqwest::Client::builder()
-            .user_agent(APP_USER_AGENT)
-            .build()?;
+            let http = reqwest::Client::builder()
+                .user_agent(APP_USER_AGENT)
+                .build()?;
 
-        http.get(url.as_str())
-            .send()
-            .await
-            .with_context(|| anyhow!("Failed to send http request: {url:?}"))?
-            .error_for_status()
-            .with_context(|| anyhow!("Failed to complete http request: {url:?}"))?
-            .json::<Vec<RebuilderdPackage>>()
-            .await
-            .with_context(|| anyhow!("Failed to parse http response: {url:?}"))?
+            responses.push(http.get(url.as_str())
+                .send()
+                .await
+                .with_context(|| anyhow!("Failed to send http request: {url:?}"))?
+                .error_for_status()
+                .with_context(|| anyhow!("Failed to complete http request: {url:?}"))?
+                .json::<Vec<RebuilderdPackage>>()
+                .await
+                .with_context(|| anyhow!("Failed to parse http response: {url:?}"))?
+            )
+        }
+        responses
     };
 
     let mut pkgs = BTreeMap::<_, Vec<_>>::new();
-    for pkg in response {
-        pkgs.entry(pkg.name.clone()).or_default().push(pkg);
+    for response in responses {
+        for pkg in response {
+            pkgs.entry(pkg.name.clone()).or_default().push(pkg);
+        }
     }
     Ok(pkgs)
 }

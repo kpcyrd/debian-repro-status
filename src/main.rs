@@ -36,11 +36,13 @@ async fn rebuilderd_query_pkgs(args: &Args) -> Result<BTreeMap<String, Vec<Rebui
                 ]
             }
             (_, _) => {
-                let arch = dpkg::print_architecture().await?;
-                vec![
-                    default_arch_rebuilderd(arch),
-                    default_arch_rebuilderd("all".to_string()),
-                ]
+                let native = dpkg::print_architecture().await?;
+                let foreign = dpkg::print_foreign_architectures().await?;
+                let mut arches = Vec::new();
+                arches.push(default_arch_rebuilderd(native));
+                arches.extend(foreign.iter().map(|a| default_arch_rebuilderd(a.to_string())));
+                arches.push(default_arch_rebuilderd("all".to_string()));
+                arches
             }
         };
 

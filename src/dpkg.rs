@@ -32,26 +32,22 @@ impl FromStr for DpkgPackage {
     }
 }
 
-pub async fn print_architecture(args: &Args) -> Result<String> {
-    if let Some(arch) = &args.architecture {
-        Ok(arch.to_string())
-    } else {
-        let exit = Command::new("dpkg")
-            .args(["--print-architecture"])
-            .stdout(Stdio::piped())
-            .spawn()?
-            .wait_with_output()
-            .await?;
-        if !exit.status.success() {
-            bail!(
-                "Failed to query installed debian packages: exit={:?}",
-                exit.status
-            );
-        }
-        let output = exit.stdout.trim_ascii().to_owned();
-        let output = String::from_utf8(output)?;
-        Ok(output)
+pub async fn print_architecture() -> Result<String> {
+    let exit = Command::new("dpkg")
+        .args(["--print-architecture"])
+        .stdout(Stdio::piped())
+        .spawn()?
+        .wait_with_output()
+        .await?;
+    if !exit.status.success() {
+        bail!(
+            "Failed to query installed debian packages: exit={:?}",
+            exit.status
+        );
     }
+    let output = exit.stdout.trim_ascii().to_owned();
+    let output = String::from_utf8(output)?;
+    Ok(output)
 }
 
 pub async fn query_packages(args: &Args) -> Result<Vec<DpkgPackage>> {

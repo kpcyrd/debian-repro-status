@@ -41,7 +41,7 @@ pub async fn print_architecture() -> Result<String> {
         .await?;
     if !exit.status.success() {
         bail!(
-            "Failed to query installed debian packages: exit={:?}",
+            "Failed to query native architecture: exit={:?}",
             exit.status
         );
     }

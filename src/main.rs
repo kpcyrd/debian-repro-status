@@ -14,6 +14,10 @@ use tokio::fs;
 
 const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
+fn default_arch_rebuilderd(arch: String) -> String {
+    format!("https://{arch}.reproduce.debian.net")
+}
+
 async fn rebuilderd_query_pkgs(args: &Args) -> Result<BTreeMap<String, Vec<RebuilderdPackage>>> {
     let response = if let Some(path) = &args.rebuilderd_query_output {
         let buf = fs::read(&path).await.with_context(|| {
@@ -21,11 +25,17 @@ async fn rebuilderd_query_pkgs(args: &Args) -> Result<BTreeMap<String, Vec<Rebui
         })?;
         serde_json::from_slice(&buf)?
     } else {
-        let endpoint = if let Some(url) = &args.rebuilderd {
-            url.trim_end_matches('/').to_string()
-        } else {
-            let arch = dpkg::print_architecture(args).await?;
-            format!("https://{arch}.reproduce.debian.net")
+        let endpoint = match (&args.rebuilderd, &args.architecture) {
+            (Some(url), _) => {
+                url.trim_end_matches('/').to_string()
+            }
+            (_, Some(arch)) => {
+                default_arch_rebuilderd(arch.to_string())
+            }
+            (_, _) => {
+                let arch = dpkg::print_architecture().await?;
+                default_arch_rebuilderd(arch)
+            }
         };
 
         let url = format!("{endpoint}/api/v0/pkgs/list");

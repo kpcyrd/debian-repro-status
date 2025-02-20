@@ -25,7 +25,7 @@ async fn rebuilderd_query_pkgs(args: &Args) -> Result<BTreeMap<String, Vec<Rebui
             url.trim_end_matches('/').to_string()
         } else {
             let arch = dpkg::print_architecture(args).await?;
-            format!("https://{arch}.reproduce.debian.net")
+            format!("https://reproduce.debian.net/{arch}")
         };
 
         let url = format!("{endpoint}/api/v0/pkgs/list");

@@ -40,7 +40,11 @@ async fn rebuilderd_query_pkgs(args: &Args) -> Result<BTreeMap<String, Vec<Rebui
                 let foreign = dpkg::print_foreign_architectures().await?;
                 let mut arches = Vec::new();
                 arches.push(default_arch_rebuilderd(native));
-                arches.extend(foreign.iter().map(|a| default_arch_rebuilderd(a.to_string())));
+                arches.extend(
+                    foreign
+                        .iter()
+                        .map(|a| default_arch_rebuilderd(a.to_string())),
+                );
                 arches.push(default_arch_rebuilderd("all".to_string()));
                 arches
             }
@@ -54,15 +58,16 @@ async fn rebuilderd_query_pkgs(args: &Args) -> Result<BTreeMap<String, Vec<Rebui
                 .user_agent(APP_USER_AGENT)
                 .build()?;
 
-            responses.push(http.get(url.as_str())
-                .send()
-                .await
-                .with_context(|| anyhow!("Failed to send http request: {url:?}"))?
-                .error_for_status()
-                .with_context(|| anyhow!("Failed to complete http request: {url:?}"))?
-                .json::<Vec<RebuilderdPackage>>()
-                .await
-                .with_context(|| anyhow!("Failed to parse http response: {url:?}"))?
+            responses.push(
+                http.get(url.as_str())
+                    .send()
+                    .await
+                    .with_context(|| anyhow!("Failed to send http request: {url:?}"))?
+                    .error_for_status()
+                    .with_context(|| anyhow!("Failed to complete http request: {url:?}"))?
+                    .json::<Vec<RebuilderdPackage>>()
+                    .await
+                    .with_context(|| anyhow!("Failed to parse http response: {url:?}"))?,
             )
         }
         responses

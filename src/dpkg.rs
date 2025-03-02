@@ -50,6 +50,25 @@ pub async fn print_architecture() -> Result<String> {
     Ok(output)
 }
 
+pub async fn print_foreign_architectures() -> Result<Vec<String>> {
+    let exit = Command::new("dpkg")
+        .args(["--print-foreign-architectures"])
+        .stdout(Stdio::piped())
+        .spawn()?
+        .wait_with_output()
+        .await?;
+    if !exit.status.success() {
+        bail!(
+            "Failed to query foreign architectures: exit={:?}",
+            exit.status
+        );
+    }
+    let output = exit.stdout.trim_ascii().to_owned();
+    let output = String::from_utf8(output)?;
+    let output = output.lines().map(String::from).collect();
+    Ok(output)
+}
+
 pub async fn query_packages(args: &Args) -> Result<Vec<DpkgPackage>> {
     let output = if let Some(path) = &args.dpkg_query_output {
         fs::read(&path)

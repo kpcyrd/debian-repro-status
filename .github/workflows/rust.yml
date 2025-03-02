@@ -32,6 +32,22 @@ jobs:
     - name: Build
       run: cargo build --release --verbose
 
+    - name: Upload binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: bin
+        path: target/release/debian-repro-status
+
+  run:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: bin
+      - name: Run debian-repro-status
+        run: chmod +x ./debian-repro-status && ./debian-repro-status
+
   unit-test:
     runs-on: ubuntu-24.04
     steps:

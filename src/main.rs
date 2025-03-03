@@ -15,7 +15,7 @@ use tokio::fs;
 const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
 fn default_arch_rebuilderd(arch: String) -> String {
-    format!("https://{arch}.reproduce.debian.net")
+    format!("https://reproduce.debian.net/{arch}")
 }
 
 async fn rebuilderd_query_pkgs(args: &Args) -> Result<BTreeMap<String, Vec<RebuilderdPackage>>> {

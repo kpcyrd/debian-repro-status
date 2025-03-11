@@ -9,7 +9,7 @@ authors = [
 license = "MIT"
 repository = "https://github.com/kpcyrd/debian-repro-status"
 categories = ["command-line-utilities"]
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 anyhow = "1"

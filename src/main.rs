@@ -13,12 +13,20 @@ use std::time::Duration;
 use tokio::fs;
 
 const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
+const READ_TIMEOUT: Duration = Duration::from_secs(180);
 
 fn default_arch_rebuilderd(arch: String) -> String {
     format!("https://reproduce.debian.net/{arch}")
 }
 
 async fn rebuilderd_query_pkgs(args: &Args) -> Result<BTreeMap<String, Vec<RebuilderdPackage>>> {
+    let http = reqwest::Client::builder()
+        .user_agent(APP_USER_AGENT)
+        .connect_timeout(CONNECT_TIMEOUT)
+        .read_timeout(READ_TIMEOUT)
+        .build()?;
+
     let responses = if let Some(path) = &args.rebuilderd_query_output {
         let buf = fs::read(&path).await.with_context(|| {
             anyhow!("Failed to read rebuilderd query output from file: {path:?}")
@@ -53,11 +61,6 @@ async fn rebuilderd_query_pkgs(args: &Args) -> Result<BTreeMap<String, Vec<Rebui
         let mut responses = Vec::new();
         for endpoint in endpoints {
             let url = format!("{endpoint}/api/v0/pkgs/list");
-
-            let http = reqwest::Client::builder()
-                .user_agent(APP_USER_AGENT)
-                .build()?;
-
             responses.push(
                 http.get(url.as_str())
                     .send()

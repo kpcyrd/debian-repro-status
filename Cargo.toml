@@ -9,14 +9,14 @@ authors = [
 license = "MIT"
 repository = "https://github.com/kpcyrd/debian-repro-status"
 categories = ["command-line-utilities"]
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
-colored = "2"
+colored = "3"
 indicatif = "0.17"
-rebuilderd-common = "0.21"
-reqwest = { version = "0.11", features = ["json", "rustls-tls-native-roots"] }
+rebuilderd-common = "0.22"
+reqwest = { version = "0.12", features = ["json", "rustls-tls-native-roots"] }
 serde_json = "1"
 tokio = { version = "1", features = ["fs", "macros", "process", "rt-multi-thread"] }

@@ -8,6 +8,8 @@ on:
   schedule:
     - cron: '0 9 * * 1'
 
+permissions: {}
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -16,6 +18,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
 
     - name: Set up cargo cache
       uses: actions/cache@v4
@@ -52,6 +56,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
 
     - name: Set up cargo cache
       uses: actions/cache@v4
@@ -74,5 +80,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
     - name: Run cargo fmt
       run: cargo fmt --all -- --check

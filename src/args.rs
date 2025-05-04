@@ -24,4 +24,7 @@ pub struct Args {
         value_parser = *&["GOOD", "BAD", "UNKWN"]
     )]
     pub filter: Option<String>,
+    /// Show only the summary, no individual packages
+    #[arg(short = 's', long)]
+    pub summary: bool,
 }

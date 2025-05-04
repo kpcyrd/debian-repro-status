@@ -16,7 +16,7 @@ anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 colored = "3"
 indicatif = "0.17"
-rebuilderd-common = "0.22"
+rebuilderd-common = "0.23"
 reqwest = { version = "0.12", default-features = false, features = ["http2", "json", "rustls-tls-native-roots"] }
 serde_json = "1"
 tokio = { version = "1", features = ["fs", "macros", "process", "rt-multi-thread"] }

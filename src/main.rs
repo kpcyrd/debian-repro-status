@@ -132,18 +132,20 @@ async fn main() -> Result<()> {
             }
         }
 
-        let icon = match status {
-            Status::Good => "+".green(),
-            Status::Bad => "-".red(),
-            Status::Unknown => "?".yellow(),
-        };
-        println!(
-            "[{icon}] {} {} {} {}",
-            pkg.name,
-            pkg.architecture,
-            pkg.version,
-            status.fancy()
-        );
+        if !args.summary {
+            let icon = match status {
+                Status::Good => "+".green(),
+                Status::Bad => "-".red(),
+                Status::Unknown => "?".yellow(),
+            };
+            println!(
+                "[{icon}] {} {} {} {}",
+                pkg.name,
+                pkg.architecture,
+                pkg.version,
+                status.fancy()
+            );
+        }
     }
 
     if installed.is_empty() {

@@ -1,6 +1,6 @@
 [package]
 name = "debian-repro-status"
-version = "0.2.1"
+version = "0.3.0"
 description = "Check the reproducibility status of your installed Debian packages"
 authors = [
     "kpcyrd <git@rxv.cc>",

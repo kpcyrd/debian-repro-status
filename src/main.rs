@@ -150,9 +150,9 @@ async fn main() -> Result<()> {
         eprintln!("Warning: No packages found.");
     } else {
         match negatives {
-            0 => info!("All packages are reproducible!"),
+            0 => info!("All packages have been reproduced!"),
             1 => info!(
-                "1/{} package is {} reproducible.{}",
+                "1/{} package could {} be reproduced.{}",
                 installed.len(),
                 "not".bold(),
                 String::from(if installed.len() > 1 {
@@ -162,14 +162,14 @@ async fn main() -> Result<()> {
                 }),
             ),
             _ => info!(
-                "{}/{} packages are {} reproducible.",
+                "{}/{} packages could {} be reproduced.",
                 negatives,
                 installed.len(),
                 "not".bold(),
             ),
         }
         info!(
-            "Your system is {:.2}% reproducible.",
+            "Your system has {:.2}% been reproduced.",
             ((installed.len() - negatives) as f64 / installed.len() as f64) * 100.
         )
     }

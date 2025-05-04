@@ -8,15 +8,25 @@ use tokio::process::Command;
 
 #[derive(Debug, PartialEq)]
 pub struct DpkgPackage {
+    pub status: String,
     pub name: String,
     pub architecture: String,
     pub version: String,
+}
+
+impl DpkgPackage {
+    pub fn is_installed(&self) -> bool {
+        self.status == "installed"
+    }
 }
 
 impl FromStr for DpkgPackage {
     type Err = Error;
 
     fn from_str(line: &str) -> Result<DpkgPackage> {
+        let Some((status, line)) = line.split_once(' ') else {
+            bail!("Malformed dpkg output, could not locate pkg name delimiting space");
+        };
         let Some((name, line)) = line.split_once(' ') else {
             bail!("Malformed dpkg output, could not locate architecture delimiting space");
         };
@@ -25,6 +35,7 @@ impl FromStr for DpkgPackage {
             bail!("Malformed dpkg output, could not locate version delimiting space");
         };
         Ok(DpkgPackage {
+            status: status.to_string(),
             name: name.to_string(),
             architecture: architecture.to_string(),
             version: version.to_string(),
@@ -76,7 +87,11 @@ pub async fn query_packages(args: &Args) -> Result<Vec<DpkgPackage>> {
             .with_context(|| anyhow!("Failed to read dpkg-query output from file: {path:?}"))?
     } else {
         let exit = Command::new("dpkg-query")
-            .args(["-f", "${binary:Package} ${Architecture} ${Version}\n", "-W"])
+            .args([
+                "-f",
+                "${db:Status-Status} ${binary:Package} ${Architecture} ${Version}\n",
+                "-W",
+            ])
             .stdout(Stdio::piped())
             .spawn()?
             .wait_with_output()
@@ -90,8 +105,10 @@ pub async fn query_packages(args: &Args) -> Result<Vec<DpkgPackage>> {
     let mut pkgs = Vec::new();
     for line in output.lines() {
         let line = line?;
-        let pkg = line.parse()?;
-        pkgs.push(pkg);
+        let pkg = line.parse::<DpkgPackage>()?;
+        if pkg.is_installed() {
+            pkgs.push(pkg);
+        }
     }
     Ok(pkgs)
 }
@@ -102,29 +119,48 @@ pub mod tests {
 
     #[test]
     fn parse_dpkg_query_line() {
-        let line = "login amd64 1:4.16.0-2+really2.40.2-11";
+        let line = "installed login amd64 1:4.16.0-2+really2.40.2-11";
         let pkg = DpkgPackage::from_str(line).unwrap();
         assert_eq!(
             pkg,
             DpkgPackage {
+                status: "installed".to_string(),
                 name: "login".to_string(),
                 architecture: "amd64".to_string(),
                 version: "1:4.16.0-2+really2.40.2-11".to_string(),
             }
         );
+        assert!(pkg.is_installed());
     }
 
     #[test]
     fn parse_dpkg_query_arch_suffixed_line() {
-        let line = "libudev1:amd64 amd64 257~rc3-1";
+        let line = "installed libudev1:amd64 amd64 257~rc3-1";
         let pkg = DpkgPackage::from_str(line).unwrap();
         assert_eq!(
             pkg,
             DpkgPackage {
+                status: "installed".to_string(),
                 name: "libudev1".to_string(),
                 architecture: "amd64".to_string(),
                 version: "257~rc3-1".to_string(),
             }
         );
+    }
+
+    #[test]
+    fn parse_dpkg_query_removed() {
+        let line = "config-files nginx-common all 1.26.3-2";
+        let pkg = DpkgPackage::from_str(line).unwrap();
+        assert_eq!(
+            pkg,
+            DpkgPackage {
+                status: "config-files".to_string(),
+                name: "nginx-common".to_string(),
+                architecture: "all".to_string(),
+                version: "1.26.3-2".to_string(),
+            }
+        );
+        assert!(!pkg.is_installed());
     }
 }

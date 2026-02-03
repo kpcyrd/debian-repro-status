@@ -126,10 +126,10 @@ async fn main() -> Result<()> {
             negatives += 1;
         }
 
-        if let Some(filter) = &args.filter {
-            if *status != *filter {
-                continue;
-            }
+        if let Some(filter) = &args.filter
+            && *status != *filter
+        {
+            continue;
         }
 
         if !args.summary {

@@ -7,7 +7,7 @@ use crate::errors::*;
 use clap::Parser;
 use colored::Colorize;
 use indicatif::ProgressBar;
-use rebuilderd_common::{PkgRelease as RebuilderdPackage, Status};
+use rebuilderd_common::api::v0::{PkgRelease as RebuilderdPackage, Status};
 use std::collections::BTreeMap;
 use std::time::Duration;
 use tokio::fs;

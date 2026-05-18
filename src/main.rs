@@ -18,7 +18,7 @@ const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PK
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 const READ_TIMEOUT: Duration = Duration::from_secs(180);
 
-const MAX_CONCCURRENT_REQUESTS: usize = 4;
+const MAX_CONCURRENT_REQUESTS: usize = 4;
 
 fn default_arch_rebuilderd(arch: &str) -> String {
     format!("https://reproduce.debian.net/{arch}")
@@ -71,7 +71,7 @@ async fn rebuilderd_query_pkgs(
 
         while !endpoints.is_empty() || !tasks.is_empty() {
             // Spawn more tasks if there's space
-            while tasks.len() < MAX_CONCCURRENT_REQUESTS
+            while tasks.len() < MAX_CONCURRENT_REQUESTS
                 && let Some(endpoint) = endpoints.pop_front()
             {
                 let url = format!("{endpoint}/api/v0/pkgs/list");

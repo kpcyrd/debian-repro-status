@@ -140,14 +140,19 @@ async fn main() -> Result<()> {
 
     let mut negatives = 0;
     for pkg in &installed {
-        let status = if let Some(reproduced) = reproduced.get(&pkg.name) {
-            reproduced
-                .iter()
-                .filter(|r| r.architecture == pkg.architecture)
-                .filter(|r| r.version == pkg.version)
-                .map(|r| r.status)
-                .next()
-                .unwrap_or(Status::Unknown)
+        let status_list = reproduced
+            .get(&pkg.name)
+            .into_iter()
+            .flatten()
+            .filter(|r| r.architecture == pkg.architecture)
+            .filter(|r| r.version == pkg.version)
+            .map(|r| r.status)
+            .collect::<Vec<_>>();
+
+        let status = if status_list.contains(&Status::Good) {
+            Status::Good
+        } else if status_list.contains(&Status::Bad) {
+            Status::Bad
         } else {
             Status::Unknown
         };

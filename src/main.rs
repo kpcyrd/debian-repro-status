@@ -6,15 +6,19 @@ use crate::args::Args;
 use crate::errors::*;
 use clap::Parser;
 use colored::Colorize;
+use futures::StreamExt;
+use futures::stream::FuturesUnordered;
 use indicatif::ProgressBar;
 use rebuilderd_common::api::v0::{PkgRelease as RebuilderdPackage, Status};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::time::Duration;
 use tokio::fs;
 
 const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 const READ_TIMEOUT: Duration = Duration::from_secs(180);
+
+const MAX_CONCCURRENT_REQUESTS: usize = 4;
 
 fn default_arch_rebuilderd(arch: &str) -> String {
     format!("https://reproduce.debian.net/{arch}")
@@ -36,7 +40,7 @@ async fn rebuilderd_query_pkgs(
         })?;
         vec![serde_json::from_slice(&buf)?]
     } else {
-        let endpoints = if !args.rebuilderd.is_empty() {
+        let mut endpoints = if !args.rebuilderd.is_empty() {
             args.rebuilderd
                 .iter()
                 .map(|url| url.trim_end_matches('/').to_string())
@@ -44,10 +48,10 @@ async fn rebuilderd_query_pkgs(
         } else if let Some(arch) = &args.architecture {
             // Use the default `reproduce.debian.net` instance,
             // with `all` and the given architecture
-            vec![
+            VecDeque::from([
                 default_arch_rebuilderd(arch),
                 default_arch_rebuilderd("all"),
-            ]
+            ])
         } else {
             // Query dpkg for relevant architectures
             let native = dpkg::print_architecture().await?;
@@ -62,27 +66,42 @@ async fn rebuilderd_query_pkgs(
             arches_iter.map(default_arch_rebuilderd).collect()
         };
 
+        let mut tasks = FuturesUnordered::new();
         let mut responses = Vec::new();
-        for endpoint in &endpoints {
-            progress_bar.set_message(format!(
-                "Retrieving packages... ({}/{})",
-                responses.len(),
-                endpoints.len()
-            ));
 
-            let url = format!("{endpoint}/api/v0/pkgs/list");
-            responses.push(
-                http.get(url.as_str())
-                    .send()
-                    .await
-                    .with_context(|| anyhow!("Failed to send http request: {url:?}"))?
-                    .error_for_status()
-                    .with_context(|| anyhow!("Failed to complete http request: {url:?}"))?
-                    .json::<Vec<RebuilderdPackage>>()
-                    .await
-                    .with_context(|| anyhow!("Failed to parse http response: {url:?}"))?,
-            )
+        while !endpoints.is_empty() || !tasks.is_empty() {
+            // Spawn more tasks if there's space
+            while tasks.len() < MAX_CONCCURRENT_REQUESTS
+                && let Some(endpoint) = endpoints.pop_front()
+            {
+                let url = format!("{endpoint}/api/v0/pkgs/list");
+                let http = http.clone();
+                tasks.push(async move {
+                    let response = http
+                        .get(url.as_str())
+                        .send()
+                        .await
+                        .with_context(|| anyhow!("Failed to send http request: {url:?}"))?
+                        .error_for_status()
+                        .with_context(|| anyhow!("Failed to complete http request: {url:?}"))?
+                        .json::<Vec<RebuilderdPackage>>()
+                        .await
+                        .with_context(|| anyhow!("Failed to parse http response: {url:?}"))?;
+                    Result::<_, Error>::Ok(response)
+                });
+            }
+
+            // Update progress status
+            let done = responses.len();
+            let total = responses.len() + tasks.len() + endpoints.len();
+            progress_bar.set_message(format!("Retrieving packages... ({done}/{total})"));
+
+            // Wait for the next response
+            if let Some(pkgs) = tasks.next().await {
+                responses.push(pkgs?);
+            }
         }
+
         responses
     };
 

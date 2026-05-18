@@ -47,7 +47,8 @@ pub async fn print_architecture() -> Result<String> {
     let exit = Command::new("dpkg")
         .args(["--print-architecture"])
         .stdout(Stdio::piped())
-        .spawn()?
+        .spawn()
+        .context("Failed to run dpkg --print-architecture")?
         .wait_with_output()
         .await?;
     if !exit.status.success() {
@@ -65,7 +66,8 @@ pub async fn print_foreign_architectures() -> Result<Vec<String>> {
     let exit = Command::new("dpkg")
         .args(["--print-foreign-architectures"])
         .stdout(Stdio::piped())
-        .spawn()?
+        .spawn()
+        .context("Failed to run dpkg --print-foreign-architectures")?
         .wait_with_output()
         .await?;
     if !exit.status.success() {
@@ -93,7 +95,8 @@ pub async fn query_packages(args: &Args) -> Result<Vec<DpkgPackage>> {
                 "-W",
             ])
             .stdout(Stdio::piped())
-            .spawn()?
+            .spawn()
+            .context("Failed to run dpkg-query")?
             .wait_with_output()
             .await?;
         if !exit.status.success() {

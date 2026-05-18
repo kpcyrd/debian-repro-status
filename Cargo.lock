@@ -312,6 +312,7 @@ dependencies = [
  "anyhow",
  "clap",
  "colored",
+ "futures-util",
  "indicatif",
  "rebuilderd-common",
  "reqwest",

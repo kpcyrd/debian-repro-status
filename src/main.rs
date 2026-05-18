@@ -6,9 +6,10 @@ use crate::args::Args;
 use crate::errors::*;
 use clap::Parser;
 use colored::Colorize;
+use futures_util::{StreamExt, stream::FuturesUnordered};
 use indicatif::ProgressBar;
 use rebuilderd_common::api::v0::{PkgRelease as RebuilderdPackage, Status};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::time::Duration;
 use tokio::fs;
 
@@ -16,11 +17,16 @@ const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PK
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 const READ_TIMEOUT: Duration = Duration::from_secs(180);
 
-fn default_arch_rebuilderd(arch: String) -> String {
+const MAX_CONCURRENT_REQUESTS: usize = 4;
+
+fn default_arch_rebuilderd(arch: &str) -> String {
     format!("https://reproduce.debian.net/{arch}")
 }
 
-async fn rebuilderd_query_pkgs(args: &Args) -> Result<BTreeMap<String, Vec<RebuilderdPackage>>> {
+async fn rebuilderd_query_pkgs(
+    args: &Args,
+    progress_bar: &ProgressBar,
+) -> Result<BTreeMap<String, Vec<RebuilderdPackage>>> {
     let http = reqwest::Client::builder()
         .user_agent(APP_USER_AGENT)
         .connect_timeout(CONNECT_TIMEOUT)
@@ -33,46 +39,68 @@ async fn rebuilderd_query_pkgs(args: &Args) -> Result<BTreeMap<String, Vec<Rebui
         })?;
         vec![serde_json::from_slice(&buf)?]
     } else {
-        let endpoints = match (&args.rebuilderd, &args.architecture) {
-            (Some(url), _) => {
-                vec![url.trim_end_matches('/').to_string()]
-            }
-            (_, Some(arch)) => {
-                vec![
-                    default_arch_rebuilderd(arch.to_string()),
-                    default_arch_rebuilderd("all".to_string()),
-                ]
-            }
-            (_, _) => {
-                let native = dpkg::print_architecture().await?;
-                let foreign = dpkg::print_foreign_architectures().await?;
-                let mut arches = Vec::new();
-                arches.push(default_arch_rebuilderd(native));
-                arches.extend(
-                    foreign
-                        .iter()
-                        .map(|a| default_arch_rebuilderd(a.to_string())),
-                );
-                arches.push(default_arch_rebuilderd("all".to_string()));
-                arches
-            }
+        let mut endpoints = if !args.rebuilderd.is_empty() {
+            args.rebuilderd
+                .iter()
+                .map(|url| url.trim_end_matches('/').to_string())
+                .collect()
+        } else if let Some(arch) = &args.architecture {
+            // Use the default `reproduce.debian.net` instance,
+            // with `all` and the given architecture
+            VecDeque::from([
+                default_arch_rebuilderd(arch),
+                default_arch_rebuilderd("all"),
+            ])
+        } else {
+            // Query dpkg for relevant architectures
+            let native = dpkg::print_architecture().await?;
+            let foreign = dpkg::print_foreign_architectures().await?;
+
+            // Use the native architecture, `all` and any foreign ones
+            let arches_iter = [native.as_str(), "all"]
+                .into_iter()
+                .chain(foreign.iter().map(|s| s.as_str()));
+
+            // Derive `reproduce.debian.net` urls for each one
+            arches_iter.map(default_arch_rebuilderd).collect()
         };
 
+        let mut tasks = FuturesUnordered::new();
         let mut responses = Vec::new();
-        for endpoint in endpoints {
-            let url = format!("{endpoint}/api/v0/pkgs/list");
-            responses.push(
-                http.get(url.as_str())
-                    .send()
-                    .await
-                    .with_context(|| anyhow!("Failed to send http request: {url:?}"))?
-                    .error_for_status()
-                    .with_context(|| anyhow!("Failed to complete http request: {url:?}"))?
-                    .json::<Vec<RebuilderdPackage>>()
-                    .await
-                    .with_context(|| anyhow!("Failed to parse http response: {url:?}"))?,
-            )
+
+        while !endpoints.is_empty() || !tasks.is_empty() {
+            // Spawn more tasks if there's space
+            while tasks.len() < MAX_CONCURRENT_REQUESTS
+                && let Some(endpoint) = endpoints.pop_front()
+            {
+                let url = format!("{endpoint}/api/v0/pkgs/list");
+                let http = http.clone();
+                tasks.push(async move {
+                    let response = http
+                        .get(url.as_str())
+                        .send()
+                        .await
+                        .with_context(|| anyhow!("Failed to send http request: {url:?}"))?
+                        .error_for_status()
+                        .with_context(|| anyhow!("Failed to complete http request: {url:?}"))?
+                        .json::<Vec<RebuilderdPackage>>()
+                        .await
+                        .with_context(|| anyhow!("Failed to parse http response: {url:?}"))?;
+                    Result::<_, Error>::Ok(response)
+                });
+            }
+
+            // Update progress status
+            let done = responses.len();
+            let total = responses.len() + tasks.len() + endpoints.len();
+            progress_bar.set_message(format!("Retrieving packages... ({done}/{total})"));
+
+            // Wait for the next response
+            if let Some(pkgs) = tasks.next().await {
+                responses.push(pkgs?);
+            }
         }
+
         responses
     };
 
@@ -101,23 +129,29 @@ async fn main() -> Result<()> {
 
     let progress_bar = ProgressBar::new_spinner();
     progress_bar.enable_steady_tick(Duration::from_millis(80));
-    progress_bar.set_message("Retrieving packages...");
 
-    let (installed, reproduced) =
-        tokio::try_join!(dpkg::query_packages(&args), rebuilderd_query_pkgs(&args),)?;
+    let (installed, reproduced) = tokio::try_join!(
+        dpkg::query_packages(&args),
+        rebuilderd_query_pkgs(&args, &progress_bar),
+    )?;
 
     progress_bar.finish_and_clear();
 
     let mut negatives = 0;
     for pkg in &installed {
-        let status = if let Some(reproduced) = reproduced.get(&pkg.name) {
-            reproduced
-                .iter()
-                .filter(|r| r.architecture == pkg.architecture)
-                .filter(|r| r.version == pkg.version)
-                .map(|r| r.status)
-                .next()
-                .unwrap_or(Status::Unknown)
+        let status_list = reproduced
+            .get(&pkg.name)
+            .into_iter()
+            .flatten()
+            .filter(|r| r.architecture == pkg.architecture)
+            .filter(|r| r.version == pkg.version)
+            .map(|r| r.status)
+            .collect::<Vec<_>>();
+
+        let status = if status_list.contains(&Status::Good) {
+            Status::Good
+        } else if status_list.contains(&Status::Bad) {
+            Status::Bad
         } else {
             Status::Unknown
         };

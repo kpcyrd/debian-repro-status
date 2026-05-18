@@ -9,7 +9,7 @@ pub struct Args {
     pub architecture: Option<String>,
     /// Change rebuilderd url endpoint
     #[arg(short = 'H', long)]
-    pub rebuilderd: Option<String>,
+    pub rebuilderd: Vec<String>,
     /// Read dpkg-query output from file instead of running the binary
     #[arg(long)]
     pub dpkg_query_output: Option<PathBuf>,

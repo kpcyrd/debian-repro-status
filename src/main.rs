@@ -16,7 +16,7 @@ const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PK
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 const READ_TIMEOUT: Duration = Duration::from_secs(180);
 
-fn default_arch_rebuilderd(arch: String) -> String {
+fn default_arch_rebuilderd(arch: &str) -> String {
     format!("https://reproduce.debian.net/{arch}")
 }
 
@@ -33,29 +33,30 @@ async fn rebuilderd_query_pkgs(args: &Args) -> Result<BTreeMap<String, Vec<Rebui
         })?;
         vec![serde_json::from_slice(&buf)?]
     } else {
-        let endpoints = match (&args.rebuilderd, &args.architecture) {
-            (Some(url), _) => {
-                vec![url.trim_end_matches('/').to_string()]
-            }
-            (_, Some(arch)) => {
-                vec![
-                    default_arch_rebuilderd(arch.to_string()),
-                    default_arch_rebuilderd("all".to_string()),
-                ]
-            }
-            (_, _) => {
-                let native = dpkg::print_architecture().await?;
-                let foreign = dpkg::print_foreign_architectures().await?;
-                let mut arches = Vec::new();
-                arches.push(default_arch_rebuilderd(native));
-                arches.extend(
-                    foreign
-                        .iter()
-                        .map(|a| default_arch_rebuilderd(a.to_string())),
-                );
-                arches.push(default_arch_rebuilderd("all".to_string()));
-                arches
-            }
+        let endpoints = if !args.rebuilderd.is_empty() {
+            args.rebuilderd
+                .iter()
+                .map(|url| url.trim_end_matches('/').to_string())
+                .collect()
+        } else if let Some(arch) = &args.architecture {
+            // Use the default `reproduce.debian.net` instance,
+            // with `all` and the given architecture
+            vec![
+                default_arch_rebuilderd(arch),
+                default_arch_rebuilderd("all"),
+            ]
+        } else {
+            // Query dpkg for relevant architectures
+            let native = dpkg::print_architecture().await?;
+            let foreign = dpkg::print_foreign_architectures().await?;
+
+            // Use the native architecture, `all` and any foreign ones
+            let arches_iter = [native.as_str(), "all"]
+                .into_iter()
+                .chain(foreign.iter().map(|s| s.as_str()));
+
+            // Derive `reproduce.debian.net` urls for each one
+            arches_iter.map(default_arch_rebuilderd).collect()
         };
 
         let mut responses = Vec::new();

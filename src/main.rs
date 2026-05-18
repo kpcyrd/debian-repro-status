@@ -20,7 +20,10 @@ fn default_arch_rebuilderd(arch: &str) -> String {
     format!("https://reproduce.debian.net/{arch}")
 }
 
-async fn rebuilderd_query_pkgs(args: &Args) -> Result<BTreeMap<String, Vec<RebuilderdPackage>>> {
+async fn rebuilderd_query_pkgs(
+    args: &Args,
+    progress_bar: &ProgressBar,
+) -> Result<BTreeMap<String, Vec<RebuilderdPackage>>> {
     let http = reqwest::Client::builder()
         .user_agent(APP_USER_AGENT)
         .connect_timeout(CONNECT_TIMEOUT)
@@ -60,7 +63,13 @@ async fn rebuilderd_query_pkgs(args: &Args) -> Result<BTreeMap<String, Vec<Rebui
         };
 
         let mut responses = Vec::new();
-        for endpoint in endpoints {
+        for endpoint in &endpoints {
+            progress_bar.set_message(format!(
+                "Retrieving packages... ({}/{})",
+                responses.len(),
+                endpoints.len()
+            ));
+
             let url = format!("{endpoint}/api/v0/pkgs/list");
             responses.push(
                 http.get(url.as_str())
@@ -102,10 +111,11 @@ async fn main() -> Result<()> {
 
     let progress_bar = ProgressBar::new_spinner();
     progress_bar.enable_steady_tick(Duration::from_millis(80));
-    progress_bar.set_message("Retrieving packages...");
 
-    let (installed, reproduced) =
-        tokio::try_join!(dpkg::query_packages(&args), rebuilderd_query_pkgs(&args),)?;
+    let (installed, reproduced) = tokio::try_join!(
+        dpkg::query_packages(&args),
+        rebuilderd_query_pkgs(&args, &progress_bar),
+    )?;
 
     progress_bar.finish_and_clear();
 

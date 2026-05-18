@@ -6,9 +6,7 @@ This code is heavily inspired and partially yoinked from [arch-repro-status](htt
 
 ## Installation
 
-### Debian
-
-(Well not yet)
+### Debian (>= trixie)
 
 ```sh
 apt-get install debian-repro-status

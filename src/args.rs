@@ -7,7 +7,7 @@ pub struct Args {
     /// Use this architecture instead of auto-detecting
     #[arg(long)]
     pub architecture: Option<String>,
-    /// Change rebuilderd url endpoint
+    /// Use custom rebuilderd url endpoint (can be used multiple times)
     #[arg(short = 'H', long)]
     pub rebuilderd: Vec<String>,
     /// Read dpkg-query output from file instead of running the binary
